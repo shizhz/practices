@@ -17,23 +17,12 @@ def natural_numbers():
 
 def is_palindrome(number):
     """check a number is symmetric or not"""
-    s = str(number)
-    for i in range(len(s) / 2):
-        if s[i] != s[-1 - i]:
-            return False
-
-    return True
+    return str(number) == ''.join(reversed(str(number)))
 
 
 def sum_of_reversed_number(number):
     """the sum of this number and it's reversed number"""
-    s = str(number)
-    result = number
-    for i in range(len(s)):
-        weight = int(s[i]) * pow(10, i)
-        result = result + weight
-
-    return result
+    return number + int("".join(reversed(str(number))))
 
 
 def smallest_near_symmetric():
