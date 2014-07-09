@@ -45,10 +45,11 @@ public class RouteParser {
      * 
      * @param routesInput
      *            the input of routes information, The
+     * @param delimiter TODO
      * @return A List contains all routes
      * @throws IllegalInputException
      */
-    private List<String> splitRoutes(String routesInput)
+    private List<String> splitRoutes(String routesInput, String delimiter)
             throws IllegalInputException {
         if (routesInput == null) {
             throw new IllegalInputException("Input for routes can not be empty");
@@ -136,9 +137,23 @@ public class RouteParser {
      * @throws IllegalInputException
      */
     public List<Route> parse(String routesInput) throws IllegalInputException {
+        return parse(routesInput, ROUTE_INPUT_SEPERATOR);
+    }
+    
+    
+    
+    /**
+     * Parse the raw of routes information to a list of <code>Route</code> objects, using specified delimiter.
+     * 
+     * @param routesInput The raw input of routes information.
+     * @param delimiter 
+     * @return
+     * @throws IllegalInputException
+     */
+    public List<Route> parse(String routesInput, String delimiter) throws IllegalInputException {
         Map<String, Route> routes = new LinkedHashMap<>();
 
-        for (String route : splitRoutes(routesInput)) {
+        for (String route : splitRoutes(routesInput, delimiter)) {
             Route r = parseRoute(route);
 
             if (routes.containsKey(r.shortRouteRepr())) {
@@ -171,7 +186,7 @@ public class RouteParser {
             throws IllegalInputException {
         Set<City> cities = new HashSet<>();
 
-        for (String route : splitRoutes(routesInput)) {
+        for (String route : splitRoutes(routesInput, ROUTE_INPUT_SEPERATOR)) {
             cities.add(parseSourceCity(route));
             cities.add(parseDestinationCity(route));
         }
