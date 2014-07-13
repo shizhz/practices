@@ -30,7 +30,6 @@ def init():
         with open(STEP_FILE, 'w') as step:
             step.write("# Define your scenario steps here")
     except Exception, e:
-        #cleanup()
         print e
         sys.exit(1)
 
@@ -51,16 +50,11 @@ def run_pucumber():
         return features
 
     def load_environment():
-        #import  imp
-        #environment = imp.load_source('environment', os.path.join(FEATURE_DIR, 'environment.py'))
-        #globals().update(environment.__dict__)
         execfile(os.path.join(FEATURE_DIR, 'environment.py'))
 
 
     load_all_step_files()
     from parser import steps_registry
-
-    print steps_registry.steps_definition
 
     context = Context()
     before_feature = globals()['before_feature'] if globals().has_key('before_feature') and isinstance(globals()['before_feature'], types.FunctionType) else lambda c: None
