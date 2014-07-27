@@ -52,13 +52,16 @@ def run_pucumber():
     def load_environment():
         execfile(os.path.join(FEATURE_DIR, 'environment.py'))
 
+    def get_hook(hook_name):
+        return globals()[hook_name] if globals().has_key(hook_name) and isinstance(globals()[hook_name], types.FunctionType) else lambda c: None
+
 
     load_all_step_files()
     from parser import steps_registry
 
     context = Context()
-    before_feature = globals()['before_feature'] if globals().has_key('before_feature') and isinstance(globals()['before_feature'], types.FunctionType) else lambda c: None
-    after_feature = globals()['after_feature'] if globals().has_key('after_feature') and isinstance(globals()['after_feature'], types.FunctionType) else lambda c: None
+    before_feature = get_hook('before_feature')
+    after_feature = get_hook('after_feature')
 
     for feature in parse_all_feature_files():
         print feature.desc
