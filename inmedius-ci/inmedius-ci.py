@@ -1,7 +1,9 @@
 #!/usr/bin/env python
 # encoding: utf-8
 
+import sys
 import os
+from os.path import exists, join, dirname
 import glob
 import shutil
 import git
@@ -24,70 +26,69 @@ def choose_project():
             print 'FUCK YOU, make it a correct project number!!'
 
 def read_version():
-    if not os.path.exists(VERSION_DIR):
+    if not exists(VERSION_DIR):
         os.makedirs(VERSION_DIR)
 
-    if not os.path.exists(VERSION_FILE):
+    if not exists(VERSION_FILE):
         open(VERSION_FILE, 'w').close()
 
     with open(VERSION_FILE) as vf:
-        versions = {}
-        for line in filter(lambda line : len(line) > 0, map(lambda line : line.strip("\n"), vf.readlines())):
-            pair = line.split('=')
-            versions[pair[0]] = pair[1]
-
-        return versions
+        return dict((x, y) for x, y in map(lambda line : line.split('='), filter(lambda line : len(line) > 0, map(lambda line : line.strip("\n"), vf.readlines()))))
 
 def get_project_name(project_entry):
     return filter(lambda ele : len(ele) > 0, project_entry[0].split('/')[::-1])[0]
 
+def get_project_commits(project):
+    return git.Repo(project[0]).log()[::-1]
+
 def get_unupgraded_commits(project):
     last_sha = VERSIONS.get(get_project_name(project))
-    commits = git.Repo(project[0]).log()[::-1]
+    commits = get_project_commits(project)
     commits_sha = map(lambda commit : commit.id, commits)
-    last_sha_index = -1
-    try:
-        last_sha_index = commits_sha.index(last_sha)
-    except Exception, e:
-        pass
 
-    return commits[last_sha_index + 1:]
+    if any(last_sha == sha for sha in commits_sha):
+        return commits[commits_sha.index(last_sha) + 1:]
+    else:
+        return commits[1:]
 
 def list_classes(project, java_file):
-    try:
-        if java_file.index(ROOT_PACKAGE):
-            pass
-    except Exception, e:
+    if len(java_file.split(ROOT_PACKAGE)) == 1:
         return []
     package_path = java_file[java_file.index(ROOT_PACKAGE) + 1:]
     root_class_dir = project[1]
     glob_class_path = package_path[:-5] + "*.class"
-    return glob.glob(os.path.join(root_class_dir, glob_class_path))
+    return glob.glob(join(root_class_dir, glob_class_path))
 
 def package_path(project, clazz):
     return clazz[len(project[1]):]
 
+def get_project_backup_dir(project):
+    return join(VERSION_DIR, get_project_name(project))
 
-def backup(project, commit, files):
-    backup_dir = os.path.join(VERSION_DIR, '_'.join(commit.message.split()) + "_" + commit.id)
+def get_commit_back_dir(project, commit):
+    return join(get_project_backup_dir(project), '_'.join(commit.message.split()) + "_" + commit.id)
+
+
+def backup_for_commit(project, commit, files):
+    backup_dir = get_commit_back_dir(project, commit)
     print 'Backup files to directory %s: ' % backup_dir
     for clazz in files:
         pp = package_path(project, clazz)
-        old_file = os.path.join(project[2], pp)
-        if os.path.exists(old_file):
-            backup_file = os.path.join(backup_dir, pp)
-            if not os.path.exists(os.path.dirname(backup_file)):
-                os.makedirs(os.path.dirname(backup_file))
+        old_file = join(project[2], pp)
+        if exists(old_file):
+            backup_file = join(backup_dir, pp)
+            if not exists(dirname(backup_file)):
+                os.makedirs(dirname(backup_file))
             print "\t", old_file
             shutil.move(old_file, backup_file)
 
-def upgrade(project, files):
+def upgrade_files(project, files):
     print 'Upgrade files: '
     for clazz in files:
-        dst = os.path.join(project[2], package_path(project, clazz))
+        dst = join(project[2], package_path(project, clazz))
         print "\t", clazz, ' -> ', dst
-        if not os.path.exists(os.path.dirname(dst)):
-            os.makedirs(os.path.dirname(dst))
+        if not exists(dirname(dst)):
+            os.makedirs(dirname(dst))
         shutil.copy(clazz, dst)
 
 def upgrade_commit(project, commit):
@@ -96,8 +97,8 @@ def upgrade_commit(project, commit):
         if changed_file.endswith('.java'):
             copy_files.extend(list_classes(project, changed_file))
 
-    backup(project, commit, copy_files)
-    upgrade(project, copy_files)
+    backup_for_commit(project, commit, copy_files)
+    upgrade_files(project, copy_files)
 
 def upgrade_project(project):
     for commit in get_unupgraded_commits(project):
@@ -110,23 +111,56 @@ def upgrade_project(project):
     except UnboundLocalError:
         print 'Nothing to upgrade for project: ', get_project_name(project)
 
+def get_upgraded_commits(project):
+    all_commits = get_project_commits(project)
+    return all_commits[:len(all_commits) - len(get_unupgraded_commits(project))]
+
+def list_backup_versions(project):
+    backup_dir = get_project_backup_dir(project)
+    if not exists(backup_dir):
+        return []
+
+    return filter(exists, map(lambda commit: get_commit_back_dir(project, commit), get_upgraded_commits(project)))[::-1]
+
+
+def rollback_project(project):
+    backup_versions = list_backup_versions(project)
+    print backup_versions
 
 def upgrade_log():
     with open(VERSION_FILE, 'w') as vf:
         for k, v in VERSIONS.iteritems():
             vf.write(k + "=" + v)
 
-def main():
+def upgrade():
     read_version()
     upgrade_project(choose_project())
     upgrade_log()
 
+def rollback():
+    read_version()
+    rollback_project(choose_project())
+    upgrade_log()
+
+def main():
+    try:
+        globals()[sys.argv[1]]()
+    except Exception, e:
+        print 'Usage: ', sys.argv[0], ' with either options ', HANDLERS
+        raise e
+
+handlers = {
+        'upgrade': upgrade,
+        'rollback': rollback
+        }
+
 PROJECTS = [ ("/Users/zzshi/Projects/ut-workshop/", "/Users/zzshi/Projects/ut-workshop/java/maven/target/classes/", "/Users/zzshi/WEB-INF/classes/") ]
 ROOT_PACKAGE = '/org/'
-ROOT_DIR = "/Users/zzshi/Projects/inmedius-ci/"
+ROOT_DIR = "/Users/zzshi/Projects/practices/inmedius-ci/"
 VERSION_DIR = ROOT_DIR + "versions"
-VERSION_FILE = os.path.join(VERSION_DIR, 'version.log')
+VERSION_FILE = join(VERSION_DIR, 'version.log')
 VERSIONS = read_version()
+HANDLERS = ['upgrade', 'rollback']
 
 if __name__ == '__main__':
     main()
